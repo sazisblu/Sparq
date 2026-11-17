@@ -653,10 +653,6 @@ function ArenaApp({
   const ownName = profile?.username ?? session.user.email ?? 'You';
   const opponent = Object.values(profiles).find((candidate) => candidate.id !== session.user.id);
   const opponentName = opponent?.username ?? 'Opponent';
-  const opponentQuietLabel = useMemo(() => {
-    const latestOpponentLog = logs.filter((log) => !log.isOwn && log.loggedAt).sort((a, b) => new Date(b.loggedAt!).getTime() - new Date(a.loggedAt!).getTime())[0];
-    return latestOpponentLog?.loggedAt ? `${formatQuietDuration(latestOpponentLog.loggedAt)} quiet` : 'No recent logs';
-  }, [logs]);
 
   const sendPushNotification = async (recipientUserId: string | undefined, type: NotificationRecord['type'], title: string, body: string, activityId?: string, icon = '/sparq-logo.jpg') => {
     if (!recipientUserId || recipientUserId === session.user.id) return;
@@ -869,7 +865,7 @@ function ArenaApp({
         <nav className="nav">
           {navItems.map(({ label, icon: NavIcon }) => <button key={label} className={activeNav === label ? 'active' : ''} onClick={() => { setActiveNav(label); setMenuOpen(false); }}><NavIcon size={17} />{label}</button>)}
         </nav>
-        <div className="sidebar-bottom"><button className="ping-link" onClick={sendPing}><Bell size={15} />Ping {opponentName} <span>{opponentQuietLabel}</span></button><button className="profile-link" onClick={() => setProfileOpen(true)}><div className="avatar you">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : initials(profile?.username ?? session.user.email ?? 'P')}</div><span><strong>{profile?.username ?? 'Player'}</strong><small>Edit profile</small></span><Pencil size={15} /></button><button className="sign-out-link" onClick={onSignOut}>Sign out</button></div>
+        <div className="sidebar-bottom"><button className="ping-link" onClick={sendPing}><Bell size={15} />Ping {opponentName} <span>12h quiet</span></button><button className="profile-link" onClick={() => setProfileOpen(true)}><div className="avatar you">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : initials(profile?.username ?? session.user.email ?? 'P')}</div><span><strong>{profile?.username ?? 'Player'}</strong><small>Edit profile</small></span><Pencil size={15} /></button><button className="sign-out-link" onClick={onSignOut}>Sign out</button></div>
       </aside>
 
       <main className="main">
@@ -883,7 +879,7 @@ function ArenaApp({
       {profileOpen && profile && <ProfileModal profile={profile} session={session} onSaved={(nextProfile) => { setProfile(nextProfile); setProfiles((current) => ({ ...current, [nextProfile.id]: nextProfile })); setProfileOpen(false); }} onClose={() => setProfileOpen(false)} />}
       {customActionOpen && <CreateActionModal onCreate={createCustomAction} onClose={() => setCustomActionOpen(false)} />}
       {stakeOpen && <StakeModal initialValue={stake} onSave={saveStake} onClose={() => setStakeOpen(false)} />}
-      {guideOpen && (activeNav === 'Shared feed' ? <ReactionGuideModal onClose={() => setGuideOpen(false)} /> : <GuideModal onClose={() => setGuideOpen(false)} />)}
+      {guideOpen && <GuideModal onClose={() => setGuideOpen(false)} />}
       {reactionPop && <ReactionPopModal key={reactionPop.id} reaction={reactionPop.reaction} onClose={() => setReactionPop(null)} />}
       {toast && <div className="toast"><Check size={16} />{toast}</div>}
     </div>
@@ -931,7 +927,7 @@ function NotificationMenu({ notifications, profiles, pushEnabled, onEnablePush, 
     <div className="notification-menu-actions"><button type="button" className={`notification-push-btn ${pushEnabled ? 'is-enabled' : ''}`} onClick={onEnablePush}><Bell size={14} />{pushEnabled ? 'Push enabled' : 'Enable push'}</button><button type="button" className="notification-read-btn" onClick={onMarkAllRead} disabled={unreadCount === 0}>Mark all read</button></div>
     <div className="notification-list">{notifications.length === 0 ? <p className="notification-empty">No updates yet. Your partner’s activity will appear here.</p> : notifications.map((notification) => {
       const reactionName = notification.body.toLowerCase().startsWith('proof') ? 'proof' : notification.body.toLowerCase() === 'rip' ? 'rip' : 'respect';
-      const icon = notification.type === 'reaction' ? `/reaction-${reactionName}.svg` : profiles[notification.actorUserId]?.avatarUrl ?? '/sparq-logo.jpg';
+      const icon = notification.type === 'reaction' ? notification.iconUrl ?? `/reaction-${reactionName}.svg` : profiles[notification.actorUserId]?.avatarUrl ?? '/sparq-logo.jpg';
       return <button type="button" className={`notification-item ${notification.readAt ? '' : 'is-unread'}`} key={notification.id} onClick={() => onMarkRead(notification.id)}><img className="notification-avatar" src={icon} alt="" /><span className="notification-copy"><strong>{notification.title}</strong><span>{notification.body}</span><small>{profiles[notification.actorUserId]?.username ?? 'Partner'} · {formatRelativeTime(notification.createdAt)}</small></span>{!notification.readAt && <i aria-label="Unread" />}</button>;
     })}</div>
   </section>;
@@ -992,26 +988,6 @@ function GuideModal({ onClose }: { onClose: () => void }) {
   ];
   const current = pages[page];
   return <div className="profile-modal-backdrop" role="dialog" aria-modal="true" aria-label="How Sparq works" onClick={onClose}><section className="profile-modal guide-modal" onClick={(event) => event.stopPropagation()}><div className="profile-modal-header"><div><span className="eyebrow">{current.eyebrow}</span><h2>{current.title}</h2></div><button type="button" className="icon-btn" onClick={onClose} aria-label="Close Sparq guide"><X size={18} /></button></div><div className={`guide-page ${page === 0 ? 'guide-page-intro' : ''}`} key={current.mode}><div className="guide-mascot"><SparkyGuideAnimation mode={current.mode} /></div><p className="guide-caption">{current.copy}</p></div><div className="guide-progress" aria-label={`Guide page ${page + 1} of ${pages.length}`}>{pages.map((item, index) => <button key={item.mode} className={index === page ? 'active' : ''} onClick={() => setPage(index)} aria-label={`Go to guide page ${index + 1}`} />)}</div><div className="guide-controls"><button className="outline-btn" onClick={() => setPage((currentPage) => Math.max(0, currentPage - 1))} disabled={page === 0}>Back</button><button className="auth-submit" onClick={() => page === pages.length - 1 ? onClose() : setPage((currentPage) => currentPage + 1)}>{page === pages.length - 1 ? 'Got it' : 'Next'}</button></div></section></div>;
-}
-
-function ReactionGuideAnimation({ reaction }: { reaction: Reaction }) {
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
-    const interval = window.setInterval(() => setFrame((current) => (current + 1) % (reaction === 'rip' ? 2 : 3)), 650);
-    return () => window.clearInterval(interval);
-  }, [reaction]);
-  return <div className="reaction-guide-visual"><SparkyGuideAnimation mode={reaction === 'respect' ? 'awake' : reaction === 'proof' ? 'win' : 'breadcrumb'} /><div className="reaction-guide-icon"><ReactionSequenceVisual reaction={reaction} frame={frame} size={112} /></div></div>;
-}
-
-function ReactionGuideModal({ onClose }: { onClose: () => void }) {
-  const [page, setPage] = useState(0);
-  const pages: { reaction: Reaction; eyebrow: string; title: string; copy: string }[] = [
-    { reaction: 'respect', eyebrow: '01 / RESPECT', title: 'Celebrate the effort.', copy: 'Use Respect when your partner makes a deliberate move worth hyping up.' },
-    { reaction: 'proof', eyebrow: '02 / PROOF', title: 'Ask for the receipts.', copy: 'Use Proof when you want a little evidence behind the check-in.' },
-    { reaction: 'rip', eyebrow: '03 / RIP', title: 'Playfully call it out.', copy: 'Use RIP for a harmless, dramatic reaction when the zombie wins.' },
-  ];
-  const current = pages[page];
-  return <div className="profile-modal-backdrop" role="dialog" aria-modal="true" aria-label="Shared log reactions" onClick={onClose}><section className="profile-modal guide-modal reaction-guide-modal" onClick={(event) => event.stopPropagation()}><div className="profile-modal-header"><div><span className="eyebrow">{current.eyebrow}</span><h2>{current.title}</h2></div><button type="button" className="icon-btn" onClick={onClose} aria-label="Close reaction guide"><X size={18} /></button></div><div className="guide-page reaction-guide-page" key={current.reaction}><div className="guide-mascot"><ReactionGuideAnimation reaction={current.reaction} /></div><p className="guide-caption">{current.copy}</p></div><div className="guide-progress" aria-label={`Reaction page ${page + 1} of ${pages.length}`}>{pages.map((item, index) => <button key={item.reaction} className={index === page ? 'active' : ''} onClick={() => setPage(index)} aria-label={`Go to reaction page ${index + 1}`} />)}</div><div className="guide-controls"><button className="outline-btn" onClick={() => setPage((currentPage) => Math.max(0, currentPage - 1))} disabled={page === 0}>Back</button><button className="auth-submit" onClick={() => page === pages.length - 1 ? onClose() : setPage((currentPage) => currentPage + 1)}>{page === pages.length - 1 ? 'Got it' : 'Next'}</button></div></section></div>;
 }
 
 function initials(value: string): string {
@@ -1099,15 +1075,6 @@ function formatRelativeTime(timestamp: string): string {
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   if (elapsedHours < 24) return `${elapsedHours} hr ago`;
   return `${Math.floor(elapsedHours / 24)} day ago`;
-}
-
-function formatQuietDuration(timestamp: string): string {
-  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 60000));
-  if (elapsedMinutes < 1) return 'Active';
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m`;
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `${elapsedHours}h`;
-  return `${Math.floor(elapsedHours / 24)}d`;
 }
 
 function CreateActionModal({ onCreate, onClose }: { onCreate: (title: string, points: number) => Promise<void>; onClose: () => void }) {
