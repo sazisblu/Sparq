@@ -2423,8 +2423,8 @@ svg {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 58px;
-    padding: 0 17px;
+    height: calc(58px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 17px 0;
     border-bottom: 1px solid var(--line);
     background: var(--paper);
   }
@@ -2437,7 +2437,7 @@ svg {
     width: 100%;
     height: auto;
     max-height: 0;
-    inset: 58px 0 auto;
+    inset: calc(58px + env(safe-area-inset-top)) 0 auto;
     padding: 0 18px;
     overflow: hidden;
     pointer-events: none;
